@@ -25,5 +25,5 @@ make
 ### Connect
 
 ## Resources
-
+ - https://medium.com/@mohcin.ghalmi/irc-server-internet-relay-chat-bd08e4f469f8
 ## Use of AI

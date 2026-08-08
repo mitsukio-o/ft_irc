@@ -12,7 +12,7 @@
 
 static volatile sig_atomic_t	g_stop = 0;
 
-// socket → setsockopt → fcntl → bind → listen の順は固定
+// socket → setsockopt → fcntl → bind → listenの順は固定
 Server::Server(int port, const std::string& password)
 	: _socket(-1), _password(password), _clients(), _channels(), _poll()
 {
@@ -22,7 +22,7 @@ Server::Server(int port, const std::string& password)
 	_socket = ::socket(AF_INET, SOCK_STREAM, 0);
 	if (_socket < 0)
 		throw std::runtime_error("socket() failed");
-	// SO_REUSEADDR は bind より前でないと効かない（TIME_WAIT 対策）
+	// SO_REUSEADDR は bind より前でないと効かない（TIME_WAIT対策用）
 	if (::setsockopt(_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0)
 		throw std::runtime_error("setsockopt() failed");
 	if (::fcntl(_socket, F_SETFL, O_NONBLOCK) < 0)
@@ -60,20 +60,38 @@ void	Server::stop(int signal)
 	g_stop = 1;
 }
 
-// build → poll → イベント処理 の輪を回す。poll はこの 1 箇所だけ
+// reap → build → poll → イベント処理 の輪を回す。poll はこの 1 箇所だけ
 void	Server::run()
 {
 	while (!g_stop)
 	{
+		reap();
 		build();
 		if (::poll(&_poll[0], _poll.size(), -1) < 0)
 			break ;
 		if (_poll[0].revents & POLLIN)
 			greet();
+		// _poll[0] はリッスンソケット。1 番目以降がクライアント
+		for (size_t i = 1; i < _poll.size(); ++i)
+		{
+			ClientMap::iterator	it = _clients.find(_poll[i].fd);
+
+			if (it == _clients.end())
+				continue ;
+			if (_poll[i].revents & (POLLERR | POLLHUP | POLLNVAL))
+				quit(*it->second, "Connection error", false);
+			else
+			{
+				if (_poll[i].revents & POLLOUT)
+					flush(*it->second);
+				if (_poll[i].revents & POLLIN)
+					receive(*it->second);
+			}
+		}
 	}
 }
 
-// 今はまだリッスンソケットだけ。クライアントの fd は受信を書く時に足す
+// リッスンソケット＋全クライアント。送るものがある時だけPOLLOUTを足す
 void	Server::build()
 {
 	pollfd	entry;
@@ -83,9 +101,22 @@ void	Server::build()
 	entry.events = POLLIN;
 	entry.revents = 0;
 	_poll.push_back(entry);
+	for (ClientMap::const_iterator it = _clients.begin();
+		it != _clients.end(); ++it)
+	{
+		entry.fd = it->first;
+		entry.events = 0;
+		entry.revents = 0;
+		// 切断待ちの相手からはもう読まない（送り切るのだけ待つ）
+		if (!it->second->isQuitting())
+			entry.events |= POLLIN;
+		if (!it->second->pending().empty())
+			entry.events |= POLLOUT;
+		_poll.push_back(entry);
+	}
 }
 
-// accept して非ブロッキングにし、_clients に登録するところまで
+// acceptして非ブロッキング、_clientsに登録するところまでこの関数でやる
 void	Server::greet()
 {
 	sockaddr_in	address;
@@ -104,22 +135,67 @@ void	Server::greet()
 	_clients[fd] = new Client(fd, ::inet_ntoa(address.sin_addr));
 }
 
-void	Server::reap()	{}
+// closeとdeleteはここでまとめて、ループ中に消すとセグフォになる
+void	Server::reap()
+{
+	ClientMap::iterator	it = _clients.begin();
 
-void	Server::receive(Client& client)	{ (void)client; }
-void	Server::flush(Client& client)	{ (void)client; }
+	while (it != _clients.end())
+	{
+		if (it->second->isQuitting() && it->second->pending().empty())
+		{
+			::close(it->first);
+			delete it->second;
+			_clients.erase(it++);
+		}
+		else
+			++it;
+	}
+}
 
+// recv → バッファに連結 → 行に切って 1 行ずつ execute へ渡す
+void	Server::receive(Client& client)
+{
+	char			buffer[4096];
+	const ssize_t	size = ::recv(client.getFd(), buffer, sizeof(buffer), 0);
+	std::string		line;
+
+	// 0以下なら理由を問わず切断として扱う（エラー要因は問わない）
+	if (size <= 0)
+		return (quit(client, "Connection closed", false));
+	client.store(buffer, static_cast<size_t>(size));
+	if (client.isFlooded())
+		return (quit(client, "Input line too long", false));
+	while (!client.isQuitting() && client.nextLine(line))
+		execute(client, line);
+}
+
+// 送れた分だけキューから削る。残りは次に POLLOUT が立ったとき
+void	Server::flush(Client& client)
+{
+	std::string&	pending = client.pending();
+	const ssize_t	size = ::send(client.getFd(), pending.c_str(),
+			pending.size(), 0);
+
+	if (size <= 0)
+		return (quit(client, "Broken connection", false));
+	pending.erase(0, static_cast<size_t>(size));
+}
+
+// 印を付けるだけ。実際に閉じるのは reap（送り残しを届けてから消すため）
 void	Server::quit(Client& client, const std::string& reason, bool graceful)
 {
-	(void)client;
 	(void)reason;
-	(void)graceful;
+	if (client.isQuitting())
+		return ;
+	client.setQuitting();
+	if (!graceful)
+		client.pending().clear();
 }
 
 void	Server::reply(Client& client, const std::string& message)
 {
-	(void)client;
-	(void)message;
+	client.push(message);
 }
 
 void	Server::announce(Client& client, const std::string& message)

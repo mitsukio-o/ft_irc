@@ -6,6 +6,7 @@
 #include <cstring>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <set>
 #include <stdexcept>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -185,10 +186,26 @@ void	Server::flush(Client& client)
 // 印を付けるだけ。実際に閉じるのは reap（送り残しを届けてから消すため）
 void	Server::quit(Client& client, const std::string& reason, bool graceful)
 {
-	(void)reason;
+	ChannelMap::iterator	it = _channels.begin();
+
 	if (client.isQuitting())
 		return ;
+	// 名簿から消す前に通知する。消してからでは配る相手が分からなくなる
+	if (client.isRegistered())
+		announce(client, ":" + client.getPrefix() + " QUIT :" + reason, false);
+	while (it != _channels.end())
+	{
+		it->second->leave(client);
+		if (it->second->isEmpty())
+		{
+			delete it->second;
+			_channels.erase(it++);
+		}
+		else
+			++it;
+	}
 	client.setQuitting();
+	// 相手が既にいない切断なら、送り残しは捨てる
 	if (!graceful)
 		client.pending().clear();
 }
@@ -198,28 +215,69 @@ void	Server::reply(Client& client, const std::string& message)
 	client.push(message);
 }
 
-void	Server::announce(Client& client, const std::string& message)
+// 同席者を set に集めてから配る。2 つの部屋で同席していても 1 回だけ届く
+void	Server::announce(Client& client, const std::string& message, bool toSelf)
 {
-	(void)client;
-	(void)message;
+	std::set<Client*>	targets;
+
+	for (ChannelMap::const_iterator it = _channels.begin();
+		it != _channels.end(); ++it)
+	{
+		if (!it->second->has(client))
+			continue ;
+		const std::vector<Client*>&	members = it->second->getMembers();
+		targets.insert(members.begin(), members.end());
+	}
+	targets.erase(&client);
+	if (toSelf)
+		targets.insert(&client);
+	for (std::set<Client*>::iterator it = targets.begin();
+		it != targets.end(); ++it)
+		(*it)->push(message);
 }
 
+// ニックの比較は大小を無視する。切断待ちの相手は見つけない
 Client*	Server::findClient(const std::string& nick) const
 {
-	(void)nick;
+	const std::string	key = toLower(nick);
+
+	for (ClientMap::const_iterator it = _clients.begin();
+		it != _clients.end(); ++it)
+	{
+		if (!it->second->isQuitting() && toLower(it->second->getNick()) == key)
+			return (it->second);
+	}
 	return (0);
 }
 
+// キーは小文字。#Chan と #chan を同じ部屋にするため
 Channel*	Server::findChannel(const std::string& name) const
 {
-	(void)name;
-	return (0);
+	const ChannelMap::const_iterator	it = _channels.find(toLower(name));
+
+	if (it == _channels.end())
+		return (0);
+	return (it->second);
 }
 
+// 無ければその場で作る。部屋は最初の 1 人が入った瞬間に生まれる
 Channel*	Server::openChannel(const std::string& name)
 {
-	(void)name;
-	return (0);
+	Channel*	channel = findChannel(name);
+
+	if (channel == 0)
+	{
+		channel = new Channel(name);
+		_channels[toLower(name)] = channel;
+	}
+	return (channel);
 }
 
-void	Server::closeIfEmpty(Channel& channel)	{ (void)channel; }
+// 最後の 1 人が去ったら部屋を消す
+void	Server::closeIfEmpty(Channel& channel)
+{
+	if (!channel.isEmpty())
+		return ;
+	_channels.erase(toLower(channel.getName()));
+	delete &channel;
+}

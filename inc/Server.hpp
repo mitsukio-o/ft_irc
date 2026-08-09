@@ -41,7 +41,8 @@ private:
 	void	execute(Client& client, const std::string& line);	// 中身は B
 	void	quit(Client& client, const std::string& reason, bool graceful);
 	void	reply(Client& client, const std::string& message);
-	void	announce(Client& client, const std::string& message);
+	void	announce(Client& client, const std::string& message,
+				bool toSelf = true);
 
 	// A（B から呼ばれる）
 	Client*		findClient(const std::string& nick) const;

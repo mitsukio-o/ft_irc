@@ -13,21 +13,21 @@ public:
 	explicit Channel(const std::string& name);
 	~Channel();
 
-	const std::string&			getName() const;
-	const std::string&			getTopic() const;
-	const std::string&			getKey() const;
-	size_t						getLimit() const;
-	bool						isInviteOnly() const;
-	bool						isTopicLocked() const;
-	std::string					getModes() const;
-	std::string					getNames() const;
-	const std::vector<Client*>&	getMembers() const;
+	const std::string&				getName() const;
+	const std::string&				getTopic() const;
+	const std::string&				getKey() const;
+	size_t							getLimit() const;
+	bool							isInviteOnly() const;
+	bool							isTopicLocked() const;
+	std::string						getModes() const;
+	std::string						getNames() const;
+	const std::set<const Client*>&	getMembers() const;
 
 	bool	isEmpty() const;
 	bool	has(const Client& client) const;
 	bool	isOperator(const Client& client) const;
 	bool	isInvited(const Client& client) const;
-	Client*	find(const std::string& nick) const;
+	const Client*	find(const std::string& nick) const;
 
 	void	setTopic(const std::string& topic);
 	void	setKey(const std::string& key);
@@ -48,7 +48,7 @@ private:
 	size_t					_limit;
 	bool					_inviteOnly;
 	bool					_topicLocked;
-	std::vector<Client*>	_members;
+	std::set<const Client*>	_members;
 	std::set<const Client*>	_operators;
 	std::set<const Client*>	_invited;
 

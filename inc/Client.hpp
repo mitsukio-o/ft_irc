@@ -14,6 +14,7 @@ public:
 	int					getFd() const;
 	const std::string&	getNick() const;
 	const std::string&	getUser() const;
+	const std::string&	getReal() const;
 	std::string			getPrefix() const;
 	bool				gotPass() const;
 	bool				isRegistered() const;
@@ -21,6 +22,7 @@ public:
 
 	void				setNick(const std::string& nick);
 	void				setUser(const std::string& user);
+	void				setReal(const std::string& real);
 	void				setPass();
 	void				setRegistered();
 	void				setQuitting();
@@ -38,6 +40,7 @@ private:
 	std::string	_host;
 	std::string	_nick;
 	std::string	_user;
+	std::string	_real;
 	std::string	_buffer;
 	std::string	_pending;
 	bool		_gotPass;

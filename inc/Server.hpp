@@ -4,6 +4,7 @@
 # define SERVER_HPP
 
 # include "Channel.hpp"
+# include "Numerics.hpp"
 # include <map>
 # include <poll.h>
 
@@ -74,6 +75,15 @@ private:
 	ClientMap				_clients;
 	ChannelMap				_channels;
 	std::vector<pollfd>		_poll;
+
+	std::string	CHANTYPES = "#&";
+	std::string	MEMPREFIX = "~@%+";
+	std::string	NICKBANPRE = "$:";
+	std::string	NICKBAN = " ,*?!@.\0\r\n";
+	std::string	USERBAN = " \0\r\n";
+	std::string	REALBAN = "\0\r\n";
+
+	std::string SRVNAME = "ircserv";
 
 	Server(const Server& other);
 	Server&	operator=(const Server& other);

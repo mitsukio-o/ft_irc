@@ -19,7 +19,7 @@ void	Server::execute(Client& client, const std::string& line)
 	size_t	pos = 0;
 	for (pos = 0; pos < line.size(); ++pos)
 	{
-		if (pos != 0 && line[pos] == ':' && line[pos - 1] == ' ')
+		if (line[pos] == ':' && (pos == 0 || line[pos - 1] == ' '))
 			break;
 	}
 	std::string	trailing = line.substr(pos + 1);

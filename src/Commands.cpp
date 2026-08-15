@@ -3,7 +3,6 @@
 #include "Server.hpp"
 #include <cctype>
 #include <sstream>
-#include <iostream>
 
 std::string	CHANTYPES = "#&";
 std::string	MEMPREFIX = "~@%+";
@@ -18,7 +17,7 @@ std::string SRVNAME = "ircserv";
 const Server::Command	Server::_commands[] = {
 	{ "CAP",     &Server::cmdCap,     false, 1 },
 	{ "PASS",    &Server::cmdPass,    false, 1 },
-	{ "NICK",    &Server::cmdNick,    false, 1 },
+	{ "NICK",    &Server::cmdNick,    false, 0 },
 	{ "USER",    &Server::cmdUser,    false, 4 },
 	{ "PING",    &Server::cmdPing,    false, 0 },
 	{ "PONG",    &Server::cmdPong,    false, 0 },
@@ -30,7 +29,7 @@ const Server::Command	Server::_commands[] = {
 	{ "KICK",    &Server::cmdKick,    true,  2 },
 	{ "MODE",    &Server::cmdMode,    true,  1 },
 	{ "PRIVMSG", &Server::cmdPrivmsg, true,  1 },
-	{ "NOTICE",  &Server::cmdNotice,  true,  1 },
+	{ "NOTICE",  &Server::cmdNotice,  true,  0 },
 	{ 0, 0, false, 0 }
 };
 
@@ -177,7 +176,8 @@ void	Server::cmdNick(Client& c, const Args& a)
 		|| ft_contain(nick, NICKBAN))
 		return (reply(c, ERR_ERRONEUSNICKNAME(c.getNick(), nick)));
 
-	if (ft_dupnick(_clients, nick))
+	// changing only the case of one's own nick is allowed
+	if (toLower(nick) != toLower(c.getNick()) && ft_dupnick(_clients, nick))
 		return (reply(c, ERR_NICKNAMEINUSE(c.getNick(), nick)));
 	
 

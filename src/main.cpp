@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 
 // 数字だけか、1024-65535 に収まるかを見る（atoi は不正な文字を弾けない）
 static bool	readPort(const std::string& text, int& port)

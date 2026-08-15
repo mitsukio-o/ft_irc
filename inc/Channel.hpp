@@ -4,7 +4,9 @@
 # define CHANNEL_HPP
 
 # include "Client.hpp"
+# include <cstddef>
 # include <set>
+# include <string>
 # include <vector>
 
 class Channel

@@ -5,8 +5,11 @@
 
 # include "Channel.hpp"
 # include "Numerics.hpp"
+# include <cstddef>
 # include <map>
 # include <poll.h>
+# include <string>
+# include <vector>
 
 class Server
 {

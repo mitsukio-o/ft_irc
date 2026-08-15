@@ -17,6 +17,8 @@
 # define ERR_NORECIPIENT(client, command) (":ircserv 411 " + client + " :No recipient given (" + command + ")")
 # define ERR_NOTEXTTOSEND(client) (":ircserv 412 " + client + " :No text to send")
 
+# define ERR_UNKNOWNCOMMAND(client, command) (":ircserv 421 " + client + " " + command + " :Unknown command")
+
 # define ERR_NONICKNAMEGIVEN(client) (":ircserv 431 " + client + " :No nickname given")
 # define ERR_ERRONEUSNICKNAME(client, nick) (":ircserv 432 " + client + " " + nick + " :Erroneus nickname")
 # define ERR_NICKNAMEINUSE(client, nick) (":ircserv 433 " + client + " " + nick + " :Nickname is already in use")

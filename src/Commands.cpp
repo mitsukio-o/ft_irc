@@ -8,9 +8,61 @@ const Server::Command	Server::_commands[] = {
 	{ 0, 0, false, 0 }
 };
 
+// line = CMD attributes :trailing stuff
 void	Server::execute(Client& client, const std::string& line)
 {
-	client.push("echo: " + line);	// 受信チェック用の仮実装。B-4 で消す
+	// Do I need this??
+	if (line.empty())
+		return ;
+	
+	// find trailing :
+	size_t	pos = 0;
+	for (pos = 0; pos < line.size(); ++pos)
+	{
+		if (pos != 0 && line[pos] == ':' && line[pos - 1] == ' ')
+			break;
+	}
+	std::string	trailing = line.substr(pos + 1);
+
+	// tokenize tokens before trailing
+	size_t						end = pos;
+	if (pos < line.size())
+		end = pos - 1;
+
+	std::vector<std::string>	args;
+	std::string					token;
+
+	std::stringstream	ssToken(line.substr(0, end));
+	while (std::getline(ssToken, token, ' '))
+	{
+		if (!token.empty())
+			args.push_back(token);
+	}
+	if (!trailing.empty())
+		args.push_back(trailing);
+	
+	// handle comand part and make args
+	if (args.empty())
+		return;
+	std::string	command = args[0];
+	args.erase(args.begin());
+
+	std::string	cmds[] = {"CAP", "PASS", "NICK", "USER", "PING", "PONG",
+			"QUIT", "JOIN", "PART", "TOPIC", "INVITE", "KICK", "MODE", "PRIVMSG", "NOTICE"};
+	void		(Server::*p_cmdFuncs[])(Client& client, const Args& args) =
+		{
+			&Server::cmdCap, &Server::cmdPass, &Server::cmdNick, &Server::cmdUser, &Server::cmdPing,
+			&Server::cmdPong, &Server::cmdQuit, &Server::cmdJoin, &Server::cmdPart, &Server::cmdTopic,
+			&Server::cmdInvite, &Server::cmdKick, &Server::cmdMode, &Server::cmdPrivmsg, &Server::cmdNotice
+		};
+	
+	for (size_t i = 0; i < 15; ++i)
+	{
+		if (cmds[i] == command)
+			return ((this->*p_cmdFuncs[i])(client, args));
+	}
+	
+	reply(client, ERR_UNKNOWNCOMMAND(client.getNick(), command));
 }
 
 void	Server::welcome(Client& client)	{ (void)client; }

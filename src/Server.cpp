@@ -225,7 +225,7 @@ void	Server::announce(Client& client, const std::string& message, bool toSelf)
 	{
 		if (!it->second->has(client))
 			continue ;
-		const std::vector<Client*>&	members = it->second->getMembers();
+		const std::set<Client*>&	members = it->second->getMembers();
 		targets.insert(members.begin(), members.end());
 	}
 	targets.erase(&client);

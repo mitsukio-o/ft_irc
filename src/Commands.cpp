@@ -13,7 +13,25 @@ void	Server::execute(Client& client, const std::string& line)
 	client.push("echo: " + line);	// 受信チェック用の仮実装。B-4 で消す
 }
 
-void	Server::welcome(Client& client)	{ (void)client; }
+void	Server::welcome(Client& c)
+{
+	// welcome sequence
+	reply(c, RPL_WELCOME(c.getNick(), "ircserv", c.getNick(), c.getUser(), "tmphost"));
+	reply(c, RPL_YOURHOST(c.getNick(), "ircserv", "1.0"));
+	reply(c, RPL_CREATED(c.getNick()));
+	reply(c, RPL_MYINFO(c.getNick(), "ircserv", "1.0"));
+	reply(c, RPL_ISUPPORT(c.getNick()));
+
+	// reply to LUSERS
+	std::stringstream	ss;
+	ss << _clients.size();
+
+	reply(c, RPL_LUSERCLIENT(c.getNick(), ss.str()));
+	reply(c, RPL_LUSERME(c.getNick(), ss.str()));
+
+	// MOTD
+	reply(c, ERR_NOMOTD(c.getNick()));
+}
 
 // no capability supported
 void	Server::cmdCap(Client& c, const Args& a)

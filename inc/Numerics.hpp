@@ -2,10 +2,10 @@
 # define NUMERICS_HPP
 
 # define RPL_WELCOME(client, network, nick, user, host) (":ircserv 001 " + client + " :Welcome to the " + network + " Network, " + nick + "[!" + user + "@" + host + "]")
-# define RPL_YOURHOST(client, servername, version) (":ircserv 002 " + client + " :Your host is " + servername " , running version " + version)
+# define RPL_YOURHOST(client, servername, version) (":ircserv 002 " + client + " :Your host is " + servername + ", running version " + version)
 # define RPL_CREATED(client) (":ircserv 003 " + client + " :This server was created at some time (no_timestamp)")
 # define RPL_MYINFO(client, servername, version) (":ircserv 004 " + client + " " + servername + " " + version + "   " + "itkl [kl]")
-# define RPL_ISUPPORT(client) (":ircserv 005 " + client + "CHANTYPES=#& PREFIX=(o)@ :are supported by this server")
+# define RPL_ISUPPORT(client) (":ircserv 005 " + client + " CHANTYPES=#& PREFIX=(o)@ :are supported by this server")
 
 # define RPL_UMODEIS(client, user_modes) (":ircserv 221 " + client + " " + user_modes)
 # define RPL_LUSERCLIENT(client, u) (":ircserv 251 " + client + " :There are " + u + " users and 0 invisible on 1 servers")
@@ -49,7 +49,7 @@
 # define ERR_BADCHANNELKEY(client, channel) (":ircserv 475 " + client + " " + channel + " :Cannot join channel (+k)")
 # define ERR_BADCHANMASK(client, channel) (":ircserv 476 " + client + " " + channel + " :Bad Channel Mask")
 
-# define ERR_CHANOPRIVSNEEDED(client, channel) (":ircserv 482 " + client + " " + channel + "  :You're not channel operator")
+# define ERR_CHANOPRIVSNEEDED(client, channel) (":ircserv 482 " + client + " " + channel + " :You're not channel operator")
 
 # define ERR_UMODEUNKNOWNFLAG(client) (":ircserv 501 " + client + " :Unknown MODE flag")
 # define ERR_USERSDONTMATCH(client) (":ircserv 502 " + client + " :Cant change mode for other users")

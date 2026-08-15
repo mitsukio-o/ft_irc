@@ -1,6 +1,7 @@
 // B's part
 
 #include "Server.hpp"
+#include <cctype>
 #include <sstream>
 #include <iostream>
 
@@ -19,7 +20,7 @@ const Server::Command	Server::_commands[] = {
 	{ "PASS",    &Server::cmdPass,    false, 1 },
 	{ "NICK",    &Server::cmdNick,    false, 1 },
 	{ "USER",    &Server::cmdUser,    false, 4 },
-	{ "PING",    &Server::cmdPing,    false, 1 },
+	{ "PING",    &Server::cmdPing,    false, 0 },
 	{ "PONG",    &Server::cmdPong,    false, 0 },
 	{ "QUIT",    &Server::cmdQuit,    false, 0 },
 	{ "JOIN",    &Server::cmdJoin,    true,  1 },
@@ -36,58 +37,52 @@ const Server::Command	Server::_commands[] = {
 // line = CMD attributes :trailing stuff
 void	Server::execute(Client& client, const std::string& line)
 {
-	// Do I need this??
-	if (line.empty())
-		return ;
-	
-	// find trailing :
-	size_t	pos = 0;
-	for (pos = 0; pos < line.size(); ++pos)
-	{
-		if (line[pos] == ':' && (pos == 0 || line[pos - 1] == ' '))
-			break;
-	}
-	std::string	trailing = line.substr(pos + 1);
-
-	// tokenize tokens before trailing
-	size_t						end = pos;
-	if (pos < line.size())
-		end = pos - 1;
-
 	std::vector<std::string>	args;
 	std::string					token;
+	size_t						i = 0;
 
-	std::stringstream	ssToken(line.substr(0, end));
-	while (std::getline(ssToken, token, ' '))
+	// skip a source sent by the client, we never trust it
+	if (i < line.size() && line[i] == ':')
 	{
-		if (!token.empty())
-			args.push_back(token);
+		while (i < line.size() && line[i] != ' ')
+			++i;
 	}
-	if (!trailing.empty())
-		args.push_back(trailing);
-	
-	// handle comand part and make args
+	while (i < line.size())
+	{
+		while (i < line.size() && line[i] == ' ')
+			++i;
+		if (i == line.size())
+			break;
+		// ':' starts the trailing, it runs to the end of the line
+		if (line[i] == ':')
+		{
+			args.push_back(line.substr(i + 1));
+			break;
+		}
+		const size_t	end = line.find(' ', i);
+		args.push_back(line.substr(i, end - i));
+		i = (end == std::string::npos) ? line.size() : end;
+	}
 	if (args.empty())
-		return;
+		return ;
+
 	std::string	command = args[0];
+	for (size_t j = 0; j < command.size(); ++j)
+		command[j] = static_cast<char>(std::toupper(static_cast<unsigned char>(command[j])));
 	args.erase(args.begin());
 
-	std::string	cmds[] = {"CAP", "PASS", "NICK", "USER", "PING", "PONG",
-			"QUIT", "JOIN", "PART", "TOPIC", "INVITE", "KICK", "MODE", "PRIVMSG", "NOTICE"};
-	void		(Server::*p_cmdFuncs[])(Client& client, const Args& args) =
-		{
-			&Server::cmdCap, &Server::cmdPass, &Server::cmdNick, &Server::cmdUser, &Server::cmdPing,
-			&Server::cmdPong, &Server::cmdQuit, &Server::cmdJoin, &Server::cmdPart, &Server::cmdTopic,
-			&Server::cmdInvite, &Server::cmdKick, &Server::cmdMode, &Server::cmdPrivmsg, &Server::cmdNotice
-		};
-	
-	for (size_t i = 0; i < 15; ++i)
+	for (size_t j = 0; _commands[j].name != 0; ++j)
 	{
-		if (cmds[i] == command)
-			return ((this->*p_cmdFuncs[i])(client, args));
+		if (command != _commands[j].name)
+			continue ;
+		if (_commands[j].registered && !client.isRegistered())
+			return (reply(client, ERR_NOTREGISTERED(client.getNick())));
+		if (args.size() < _commands[j].params)
+			return (reply(client, ERR_NEEDMOREPARAMS(client.getNick(), command)));
+		return ((this->*_commands[j].handler)(client, args));
 	}
-	
-	reply(client, ERR_UNKNOWNCOMMAND(client.getNick(), command));
+	if (client.isRegistered())
+		reply(client, ERR_UNKNOWNCOMMAND(client.getNick(), command));
 }
 
 void	Server::welcome(Client& c)
@@ -163,7 +158,7 @@ static bool	ft_dupnick(const Server::ClientMap& clients, const std::string& nick
 
 	for (it = clients.begin(); it != clients.end(); ++it)
 	{
-		if (it->second->getNick() == nick)
+		if (toLower(it->second->getNick()) == toLower(nick))
 			return (true);
 	}
 	return (false);
@@ -211,7 +206,7 @@ void	Server::cmdUser(Client& c, const Args& a)
 	
 	std::string	username = a[0];
 	std::string	realname = a[3];
-	if (username.size() < 2)
+	if (username.empty())
 		return (reply(c, ERR_NEEDMOREPARAMS(c.getNick(), "USER")));
 
 	// undefined error for when invalid character is used for username
@@ -302,6 +297,8 @@ void	Server::cmdJoin(Client& c, const Args& a)
 			channel = openChannel(channelName);
 			channel->join(&c, true);
 		}
+		else if (channel->has(c))
+			continue;
 		else
 		{
 			std::string	key;
@@ -317,20 +314,20 @@ void	Server::cmdJoin(Client& c, const Args& a)
 				reply(c, ERR_INVITEONLYCHAN(c.getNick(), channelName));
 				continue;
 			}
-			if (channel->getLimit() != 0 && channel->getLimit() >= channel->getMembers().size())
+			if (channel->getLimit() != 0 && channel->getMembers().size() >= channel->getLimit())
 			{
 				reply(c, ERR_CHANNELISFULL(c.getNick(), channelName));
 				continue;
 			}
 			channel->join(&c, false);
 		}
-		channel->broadcast(c.getSource() + " JOIN :" + channelName);
+		channel->broadcast(c.getSource() + " JOIN :" + channel->getName());
 		if (channel->getTopic().empty())
-			reply(c, RPL_NOTOPIC(c.getNick(), channelName));
+			reply(c, RPL_NOTOPIC(c.getNick(), channel->getName()));
 		else
-			reply(c, RPL_TOPIC(c.getNick(), channelName, channel->getTopic()));
-		reply(c, RPL_NAMREPLY(c.getNick(), "=", channelName, channel->getNames()));
-		reply(c, RPL_ENDOFNAMES(c.getNick(), channelName));
+			reply(c, RPL_TOPIC(c.getNick(), channel->getName(), channel->getTopic()));
+		reply(c, RPL_NAMREPLY(c.getNick(), "=", channel->getName(), channel->getNames()));
+		reply(c, RPL_ENDOFNAMES(c.getNick(), channel->getName()));
 	}
 }
 
@@ -394,7 +391,8 @@ void	Server::cmdTopic(Client& c, const Args& a)
 	if (channel->isTopicLocked() && !channel->isOperator(c))
 		return (reply(c, ERR_CHANOPRIVSNEEDED(c.getNick(), a[0])));
 	channel->setTopic(a[1]);
-	channel->broadcast(":ircserv TOPIC " + a[0] + " :" + channel->getTopic());
+	channel->broadcast(c.getSource() + " TOPIC " + channel->getName()
+		+ " :" + channel->getTopic());
 }
 
 // invites a person to the channel
@@ -410,7 +408,7 @@ void	Server::cmdInvite(Client& c, const Args& a)
 		return (reply(c, ERR_NOTONCHANNEL(c.getNick(), a[1])));
 	if (channel->isInviteOnly() && !channel->isOperator(c))
 		return (reply(c, ERR_CHANOPRIVSNEEDED(c.getNick(), a[1])));
-	if (channel->find(a[0]));
+	if (channel->find(a[0]))
 		return (reply(c, ERR_USERONCHANNEL(c.getNick(), a[0], a[1])));
 	
 	Client*	invited = findClient(a[0]);
@@ -419,7 +417,7 @@ void	Server::cmdInvite(Client& c, const Args& a)
 	
 	channel->invite(*invited);
 	reply(c, RPL_INVITING(c.getNick(), a[0], a[1]));
-	reply(*invited, c.getSource() + " INVITE " + a[0] + a[1]);
+	reply(*invited, c.getSource() + " INVITE " + a[0] + " " + a[1]);
 }
 
 // kicks a user from channel
@@ -444,21 +442,20 @@ void	Server::cmdKick(Client& c, const Args& a)
 		userNames.push_back(token);
 	
 	std::string	message = " :Was Kicked";
-	if (a.size() > 1)
-		message = " :" + a[1];
+	if (a.size() > 2)
+		message = " :" + a[2];
 	
 	std::vector<std::string>::const_iterator	it;
 	for (it = userNames.begin(); it != userNames.end(); ++it)
 	{
 		Client*	client = findClient(*it);
-		if (!client)
-			continue;
-		if (!channel->has(*client))
+		if (!client || !channel->has(*client))
 		{
 			reply(c, ERR_USERNOTINCHANNEL(c.getNick(), *it, a[0]));
 			continue;
 		}
-		channel->broadcast(c.getSource() + " KICK " + a[0] + *it + message);
+		channel->broadcast(c.getSource() + " KICK " + channel->getName()
+			+ " " + *it + message);
 		channel->leave(*client);
 	}
 }
@@ -508,7 +505,7 @@ void	Server::cmdMode(Client& c, const Args& a)
 		return (reply(c, ERR_NEEDMOREPARAMS(c.getNick(), "MODE")));
 
 	// when target is a user
-	if (CHANTYPES.find(a[0]) != std::string::npos)
+	if (a[0].empty() || CHANTYPES.find(a[0][0]) == std::string::npos)
 	{
 		std::string	nick = a[0];
 		Client*	client = findClient(nick);
@@ -577,9 +574,9 @@ void	Server::cmdMode(Client& c, const Args& a)
 					channel->setTopicLocked(true);
 					didSomething = true;
 				}
-				else if (!isAdd && channel->isInviteOnly())
+				else if (!isAdd && channel->isTopicLocked())
 				{
-					channel->setInviteOnly(false);
+					channel->setTopicLocked(false);
 					didSomething = true;
 				}
 				else
@@ -703,13 +700,15 @@ void	Server::cmdPrivmsg(Client& c, const Args& a)
 	std::vector<std::string>	targetNames;
 	std::string					token;
 
-	std::stringstream	ssTarget(a[1]);
+	std::stringstream	ssTarget(a[0]);
 	while (std::getline(ssTarget, token, ','))
 		targetNames.push_back(token);
 
 	std::vector<std::string>::const_iterator	it;
 	for (it = targetNames.begin(); it != targetNames.end(); ++it)
 	{
+		if (it->empty())
+			continue;
 		// handle channels
 		if (CHANTYPES.find((*it)[0]) != std::string::npos)
 		{
@@ -736,7 +735,8 @@ void	Server::cmdPrivmsg(Client& c, const Args& a)
 				continue;
 			}
 			
-			client->push(":" + c.getNick() + " PRIVMSG " + *it + " :" + a[1]);
+			client->push(c.getSource() + " PRIVMSG " + client->getNick()
+				+ " :" + a[1]);
 		}
 	}
 }

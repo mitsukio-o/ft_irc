@@ -26,6 +26,7 @@
 # define ERR_NORECIPIENT(client, command) (":ircserv 411 " + client + " :No recipient given (" + command + ")")
 # define ERR_NOTEXTTOSEND(client) (":ircserv 412 " + client + " :No text to send")
 
+# define ERR_UNKNOWNCOMMAND(client, command) (":ircserv 421 " + client + " " + command + " :Unknown command")
 # define ERR_NOMOTD(client) (":ircserv 422 " + client + " :MOTD File is missing")
 
 # define ERR_NONICKNAMEGIVEN(client) (":ircserv 431 " + client + " :No nickname given")

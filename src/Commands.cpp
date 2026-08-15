@@ -13,7 +13,23 @@ std::string	REALBAN = "\0\r\n";
 
 std::string SRVNAME = "ircserv";
 
+// { name, handler, needs registration, minimum number of parameters }
 const Server::Command	Server::_commands[] = {
+	{ "CAP",     &Server::cmdCap,     false, 1 },
+	{ "PASS",    &Server::cmdPass,    false, 1 },
+	{ "NICK",    &Server::cmdNick,    false, 1 },
+	{ "USER",    &Server::cmdUser,    false, 4 },
+	{ "PING",    &Server::cmdPing,    false, 1 },
+	{ "PONG",    &Server::cmdPong,    false, 0 },
+	{ "QUIT",    &Server::cmdQuit,    false, 0 },
+	{ "JOIN",    &Server::cmdJoin,    true,  1 },
+	{ "PART",    &Server::cmdPart,    true,  1 },
+	{ "TOPIC",   &Server::cmdTopic,   true,  1 },
+	{ "INVITE",  &Server::cmdInvite,  true,  2 },
+	{ "KICK",    &Server::cmdKick,    true,  2 },
+	{ "MODE",    &Server::cmdMode,    true,  1 },
+	{ "PRIVMSG", &Server::cmdPrivmsg, true,  1 },
+	{ "NOTICE",  &Server::cmdNotice,  true,  1 },
 	{ 0, 0, false, 0 }
 };
 
@@ -25,7 +41,7 @@ void	Server::execute(Client& client, const std::string& line)
 void	Server::welcome(Client& c)
 {
 	// welcome sequence
-	reply(c, RPL_WELCOME(c.getNick(), "ircserv", c.getNick(), c.getUser(), "tmphost"));
+	reply(c, RPL_WELCOME(c.getNick(), "ircserv", c.getNick(), c.getUser(), c.getHost()));
 	reply(c, RPL_YOURHOST(c.getNick(), "ircserv", "1.0"));
 	reply(c, RPL_CREATED(c.getNick()));
 	reply(c, RPL_MYINFO(c.getNick(), "ircserv", "1.0"));
@@ -120,7 +136,7 @@ void	Server::cmdNick(Client& c, const Args& a)
 
 	if (c.isRegistered())
 	{
-		announce(c, ":" + c.getNick() + "!" + c.getUser() + "@tmphost NICK :" + nick);
+		announce(c, c.getSource() + " NICK :" + nick);
 		c.setNick(nick);
 		return ;
 	}
@@ -256,7 +272,7 @@ void	Server::cmdJoin(Client& c, const Args& a)
 			}
 			channel->join(&c, false);
 		}
-		channel->broadcast(":" + c.getNick() + "!" + c.getUser() + "@tmphost JOIN :" + channelName);
+		channel->broadcast(c.getSource() + " JOIN :" + channelName);
 		if (channel->getTopic().empty())
 			reply(c, RPL_NOTOPIC(c.getNick(), channelName));
 		else
@@ -673,4 +689,41 @@ void	Server::cmdPrivmsg(Client& c, const Args& a)
 	}
 }
 
-void	Server::cmdNotice(Client& c, const Args& a)	{ (void)c; (void)a; }
+// same as PRIVMSG but never answers with an error
+void	Server::cmdNotice(Client& c, const Args& a)
+{
+	if (a.empty() || a[0].empty())
+		return ;
+	if (a.size() < 2 || a[1].empty())
+		return ;
+
+	std::vector<std::string>	targetNames;
+	std::string					token;
+
+	std::stringstream	ssTarget(a[0]);
+	while (std::getline(ssTarget, token, ','))
+		targetNames.push_back(token);
+
+	std::vector<std::string>::const_iterator	it;
+	for (it = targetNames.begin(); it != targetNames.end(); ++it)
+	{
+		if (it->empty())
+			continue;
+		if (CHANTYPES.find((*it)[0]) != std::string::npos)
+		{
+			Channel*	channel = findChannel(*it);
+			if (!channel || !channel->has(c))
+				continue;
+			channel->broadcast(c.getSource() + " NOTICE " + channel->getName()
+				+ " :" + a[1], &c);
+		}
+		else
+		{
+			Client*	client = findClient(*it);
+			if (!client)
+				continue;
+			client->push(c.getSource() + " NOTICE " + client->getNick()
+				+ " :" + a[1]);
+		}
+	}
+}

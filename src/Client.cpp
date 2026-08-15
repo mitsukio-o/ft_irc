@@ -1,6 +1,8 @@
 // A's part
 
 #include "Client.hpp"
+#include <cstddef>
+#include <string>
 
 static const size_t	kMaxLine = 65536;
 

@@ -1,6 +1,9 @@
 // B's part
 
 #include "Channel.hpp"
+#include <cstddef>
+#include <set>
+#include <string>
 
 Channel::Channel(const std::string& name)
 	: _name(name), _topic(), _key(), _limit(0), _inviteOnly(false),

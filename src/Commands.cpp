@@ -2,7 +2,11 @@
 
 #include "Server.hpp"
 #include <cctype>
+#include <cstddef>
+#include <cstdlib>
 #include <sstream>
+#include <string>
+#include <vector>
 
 std::string	CHANTYPES = "#&";
 std::string	MEMPREFIX = "~@%+";

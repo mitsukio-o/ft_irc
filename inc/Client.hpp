@@ -4,6 +4,8 @@
 # define CLIENT_HPP
 
 # include "Irc.hpp"
+# include <cstddef>
+# include <string>
 
 class Client
 {

@@ -21,12 +21,12 @@ public:
 	bool						isTopicLocked() const;
 	std::string					getModes() const;
 	std::string					getNames() const;
-	const std::vector<Client*>&	getMembers() const;
+	const std::set<Client*>&	getMembers() const;
 
 	bool	isEmpty() const;
-	bool	has(const Client& client) const;
-	bool	isOperator(const Client& client) const;
-	bool	isInvited(const Client& client) const;
+	bool	has(Client& client) const;
+	bool	isOperator(Client& client) const;
+	bool	isInvited(Client& client) const;
 	Client*	find(const std::string& nick) const;
 
 	void	setTopic(const std::string& topic);
@@ -36,21 +36,21 @@ public:
 	void	setTopicLocked(bool on);
 
 	void	join(Client* client, bool asOperator);
-	void	leave(const Client& client);
-	void	invite(const Client& client);
-	void	grant(const Client& client, bool on);
-	void	broadcast(const std::string& message, const Client* except = 0) const;
+	void	leave(Client& client);
+	void	invite(Client& client);
+	void	grant(Client& client, bool on);
+	void	broadcast(const std::string& message, Client* except = 0);
 
 private:
-	std::string				_name;
-	std::string				_topic;
-	std::string				_key;
-	size_t					_limit;
-	bool					_inviteOnly;
-	bool					_topicLocked;
-	std::vector<Client*>	_members;
-	std::set<const Client*>	_operators;
-	std::set<const Client*>	_invited;
+	std::string			_name;
+	std::string			_topic;
+	std::string			_key;
+	size_t				_limit;
+	bool				_inviteOnly;
+	bool				_topicLocked;
+	std::set<Client*>	_members;
+	std::set<Client*>	_operators;
+	std::set<Client*>	_invited;
 
 	Channel(const Channel& other);
 	Channel&	operator=(const Channel& other);

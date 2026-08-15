@@ -53,3 +53,8 @@ void	Client::push(const std::string& message)
 {
 	(void)message;
 }
+
+std::string	Client::getSource()
+{
+	return (":" + _nick + "!" + _user + "@tmphost");
+}

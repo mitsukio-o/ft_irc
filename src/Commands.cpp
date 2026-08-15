@@ -137,11 +137,20 @@ void	Server::cmdQuit(Client& c, const Args& a)
 void	Server::cmdJoin(Client& c, const Args& a)
 {
 	if (a.empty())
-		return (reply(c, ERR_NONICKNAMEGIVEN(c.getNick())));
+		return (reply(c, ERR_NEEDMOREPARAMS(c.getNick(), "JOIN")));
 	
 	if (a[0] == "0")
 	{
-		// TODO Part all channels
+		std::vector<std::string>			chans;
+		Server::ChannelMap::const_iterator	it;
+
+		for (it = _channels.begin(); it != _channels.end(); ++it)
+		{
+			if (it->second->has(c))
+				chans.push_back(it->second->getName());
+		}
+		if (!chans.empty())
+			cmdPart(c, chans);
 		return ;
 	}
 
@@ -178,24 +187,437 @@ void	Server::cmdJoin(Client& c, const Args& a)
 			if (i < tryKeys.size())
 				key = tryKeys[i];
 			if (!channel->getKey().empty() && channel->getKey() != key)
-				return (reply(c, ERR_BADCHANNELKEY(c.getNick(), channelName)));
+			{
+				reply(c, ERR_BADCHANNELKEY(c.getNick(), channelName));
+				continue;
+			}
 			if (channel->isInviteOnly() && !channel->isInvited(c))
-				return (reply(c, ERR_INVITEONLYCHAN(c.getNick(), channelName)));
+			{
+				reply(c, ERR_INVITEONLYCHAN(c.getNick(), channelName));
+				continue;
+			}
+			if (channel->getLimit() != 0 && channel->getLimit() >= channel->getMembers().size())
+			{
+				reply(c, ERR_CHANNELISFULL(c.getNick(), channelName));
+				continue;
+			}
 			channel->join(&c, false);
 		}
 		channel->broadcast(":" + c.getNick() + "!" + c.getUser() + "@tmphost JOIN :" + channelName);
-		if (!channel->getTopic().empty())
+		if (channel->getTopic().empty())
+			reply(c, RPL_NOTOPIC(c.getNick(), channelName));
+		else
 			reply(c, RPL_TOPIC(c.getNick(), channelName, channel->getTopic()));
 		reply(c, RPL_NAMREPLY(c.getNick(), "=", channelName, channel->getNames()));
 		reply(c, RPL_ENDOFNAMES(c.getNick(), channelName));
 	}
 }
 
+// removes client from channels
+void	Server::cmdPart(Client& c, const Args& a)
+{
+	if (a.empty())
+		return (reply(c, ERR_NEEDMOREPARAMS(c.getNick(), "PART")));
 
-void	Server::cmdPart(Client& c, const Args& a)	{ (void)c; (void)a; }
-void	Server::cmdTopic(Client& c, const Args& a)	{ (void)c; (void)a; }
-void	Server::cmdInvite(Client& c, const Args& a)	{ (void)c; (void)a; }
-void	Server::cmdKick(Client& c, const Args& a)	{ (void)c; (void)a; }
-void	Server::cmdMode(Client& c, const Args& a)	{ (void)c; (void)a; }
-void	Server::cmdPrivmsg(Client& c, const Args& a)	{ (void)c; (void)a; }
+	std::vector<std::string>	channelNames;
+	std::string					token;
+
+	std::stringstream	ssChannels(a[0]);
+	while (std::getline(ssChannels, token, ','))
+		channelNames.push_back(token);
+	
+	std::string	reason;
+	if (a.size() > 2)
+		reason = a[1];
+	
+	Channel*	channel;
+	std::vector<std::string>::const_iterator	it;
+	for (it = channelNames.begin(); it != channelNames.end(); ++it)
+	{
+		channel = findChannel(*it);
+		if (!channel)
+		{
+			reply(c, ERR_NOSUCHCHANNEL(c.getNick(), *it));
+			continue;
+		}
+		if (!channel->has(c))
+		{
+			reply(c, ERR_NOTONCHANNEL(c.getNick(), *it));
+			continue;
+		}
+		channel->broadcast(c.getSource() + " PART " + *it + " :" + reason);
+		channel->leave(c);
+	}
+}
+
+// change topic in channel
+void	Server::cmdTopic(Client& c, const Args& a)
+{
+	if (a.empty())
+		return (reply(c, ERR_NEEDMOREPARAMS(c.getNick(), "TOPIC")));
+
+	Channel*	channel = findChannel(a[0]);
+	if (!channel)
+		return (reply(c, ERR_NOSUCHCHANNEL(c.getNick(), a[0])));
+	if (!channel->has(c))
+		return (reply(c, ERR_NOTONCHANNEL(c.getNick(), a[0])));
+	
+	if (a.size() < 2)
+	{
+		if (channel->getTopic().empty())
+			return (reply(c, RPL_NOTOPIC(c.getNick(), a[0])));
+		else
+			return (reply(c, RPL_TOPIC(c.getNick(), a[0], channel->getTopic())));
+	}
+
+	if (channel->isTopicLocked() && !channel->isOperator(c))
+		return (reply(c, ERR_CHANOPRIVSNEEDED(c.getNick(), a[0])));
+	channel->setTopic(a[1]);
+	channel->broadcast(":ircserv TOPIC " + a[0] + " :" + channel->getTopic());
+}
+
+// invites a person to the channel
+void	Server::cmdInvite(Client& c, const Args& a)
+{
+	if (a.size() < 2)
+		return (reply(c, ERR_NEEDMOREPARAMS(c.getNick(), "INVITE")));
+	
+	Channel*	channel = findChannel(a[1]);
+	if (!channel)
+		return (reply(c, ERR_NOSUCHCHANNEL(c.getNick(), a[1])));
+	if (!channel->has(c))
+		return (reply(c, ERR_NOTONCHANNEL(c.getNick(), a[1])));
+	if (channel->isInviteOnly() && !channel->isOperator(c))
+		return (reply(c, ERR_CHANOPRIVSNEEDED(c.getNick(), a[1])));
+	if (channel->find(a[0]));
+		return (reply(c, ERR_USERONCHANNEL(c.getNick(), a[0], a[1])));
+	
+	Client*	invited = findClient(a[0]);
+	if (!invited)
+		return ;
+	
+	channel->invite(*invited);
+	reply(c, RPL_INVITING(c.getNick(), a[0], a[1]));
+	reply(*invited, c.getSource() + " INVITE " + a[0] + a[1]);
+}
+
+// kicks a user from channel
+void	Server::cmdKick(Client& c, const Args& a)
+{
+	if (a.size() < 2)
+		return (reply(c, ERR_NEEDMOREPARAMS(c.getNick(), "KCIK")));
+	
+	Channel*	channel = findChannel(a[0]);
+	if (!channel)
+		return (reply(c, ERR_NOSUCHCHANNEL(c.getNick(), a[0])));
+	if (!channel->has(c))
+		return (reply(c, ERR_NOTONCHANNEL(c.getNick(), a[0])));
+	if (!channel->isOperator(c))
+		return (reply(c, ERR_CHANOPRIVSNEEDED(c.getNick(), a[0])));
+
+	std::vector<std::string>	userNames;
+	std::string					token;
+
+	std::stringstream	ssUsers(a[1]);
+	while (std::getline(ssUsers, token, ','))
+		userNames.push_back(token);
+	
+	std::string	message = " :Was Kicked";
+	if (a.size() > 1)
+		message = " :" + a[1];
+	
+	std::vector<std::string>::const_iterator	it;
+	for (it = userNames.begin(); it != userNames.end(); ++it)
+	{
+		Client*	client = findClient(*it);
+		if (!client)
+			continue;
+		if (!channel->has(*client))
+		{
+			reply(c, ERR_USERNOTINCHANNEL(c.getNick(), *it, a[0]));
+			continue;
+		}
+		channel->broadcast(c.getSource() + " KICK " + a[0] + *it + message);
+		channel->leave(*client);
+	}
+}
+
+static std::string	getModestr(Channel& channel)
+{
+	std::string	modestr = "+";
+
+	if (channel.isInviteOnly())
+		modestr += "i";
+	if (channel.isTopicLocked())
+		modestr += "t";
+	if (!channel.getKey().empty())
+		modestr += "k";
+	if (channel.getLimit() != 0)
+		modestr += "l";
+	return (modestr);
+}
+
+static std::string	getModeArgs(Channel& channel)
+{
+	if (channel.getLimit() == 0)
+		return ("");
+
+	std::stringstream	ss;
+	ss << channel.getLimit();
+	return (ss.str());
+}
+
+static size_t	strToLimit(std::string str)
+{
+	size_t				limit;
+	std::stringstream	ss(str);
+	char				extra;
+
+	if (!(ss >> limit))
+		return (0);
+	if (ss >> extra)
+		return (0);
+	return (limit);
+}
+
+// set or remove options from a given target
+void	Server::cmdMode(Client& c, const Args& a)
+{
+	if (a.empty())
+		return (reply(c, ERR_NEEDMOREPARAMS(c.getNick(), "MODE")));
+
+	// when target is a user
+	if (CHANTYPES.find(a[0]) != std::string::npos)
+	{
+		std::string	nick = a[0];
+		Client*	client = findClient(nick);
+		if (!client)
+			return (reply(c, ERR_NOSUCHNICK(c.getNick(), nick)));
+		if (client != &c)
+			return (reply(c, ERR_USERSDONTMATCH(c.getNick())));
+		
+		if (a.size() < 2)
+			return (reply(c, RPL_UMODEIS(c.getNick(), "+")));
+
+		return (reply(c, ERR_UMODEUNKNOWNFLAG(c.getNick())));
+	}
+
+	// when target is a channel
+	else
+	{
+		Channel*	channel = findChannel(a[0]);
+		if (!channel)
+			return (reply(c, ERR_NOSUCHCHANNEL(c.getNick(), a[0])));
+		
+		if (a.size() < 2)
+			return (reply(c, RPL_CHANNELMODEIS(c.getNick(), a[0], getModestr(*channel), getModeArgs(*channel))));
+
+		if (!channel->isOperator(c))
+			return (reply(c, ERR_CHANOPRIVSNEEDED(c.getNick(), a[0])));
+
+		std::string	modestr = a[1];
+		size_t		lenModestr = modestr.length();
+		size_t		itModeArg = 2;
+		bool		isAdd = true;
+		std::string	actModestr;
+		std::string	actModeArg;
+		bool		actIsAdd = true;
+		std::string	errChar;
+
+		for (size_t i = 0; i < lenModestr; ++i)
+		{
+			bool		didSomething = false;
+			std::string	hasModeArg;
+			if (modestr[i] == '+')
+				isAdd = true;
+			else if (modestr[i] == '-')
+				isAdd = false;
+
+			else if (modestr[i] == 'i')
+			{
+				if (isAdd && !channel->isInviteOnly())
+				{
+					channel->setInviteOnly(true);
+					didSomething = true;
+				}
+				else if (!isAdd && channel->isInviteOnly())
+				{
+					channel->setInviteOnly(false);
+					didSomething = true;
+				}
+				else
+					continue;
+			}
+
+			else if (modestr[i] == 't')
+			{
+				if (isAdd && !channel->isTopicLocked())
+				{
+					channel->setTopicLocked(true);
+					didSomething = true;
+				}
+				else if (!isAdd && channel->isInviteOnly())
+				{
+					channel->setInviteOnly(false);
+					didSomething = true;
+				}
+				else
+					continue;
+			}
+
+			else if (modestr[i] == 'k')
+			{
+				if (!isAdd)
+				{
+					if (!channel->getKey().empty())
+					{
+						channel->setKey("");
+						didSomething = true;
+					}
+					else
+						continue;
+				}
+				else
+				{
+					if (itModeArg >= a.size())
+						break;
+					hasModeArg = a[itModeArg];
+					++itModeArg;
+					if (hasModeArg.empty() || hasModeArg == channel->getKey())
+						continue;
+					channel->setKey(hasModeArg);
+					didSomething = true;			
+				}
+			}
+
+			else if (modestr[i] == 'o')
+			{
+				if (itModeArg >= a.size())
+					break;
+				hasModeArg = a[itModeArg];
+				++itModeArg;
+				Client*	target = findClient(hasModeArg);
+				if (!target || !channel->has(*target))
+					continue;
+				if (isAdd && !channel->isOperator(*target))
+				{
+					channel->grant(*target, true);
+					didSomething = true;
+				}
+				else if (!isAdd && channel->isOperator(*target))
+				{
+					channel->grant(*target, false);
+					didSomething = true;
+				}
+				else
+					continue;
+			}
+
+			else if (modestr[i] == 'l')
+			{
+				if (!isAdd)
+				{
+					if (channel->getLimit() != 0)
+					{
+						channel->setLimit(0);
+						didSomething = true;
+					}
+					else
+						continue;
+				}
+				else
+				{
+					if (itModeArg >= a.size())
+						break;
+					hasModeArg = a[itModeArg];
+					++itModeArg;
+					size_t	limit = strToLimit(hasModeArg);
+					if (limit == 0 || limit == channel->getLimit())
+						continue;
+					channel->setLimit(limit);
+					didSomething = true;
+				}
+			}
+
+			else
+				errChar += modestr[i];
+
+			if (didSomething)
+			{
+				if (actModestr.empty() || actIsAdd != isAdd)
+				{
+					if (isAdd)
+						actModestr += "+";
+					else
+						actModestr += "-";
+					actIsAdd = isAdd;
+				}
+				actModestr += modestr[i];
+
+				if (!hasModeArg.empty())
+					actModeArg += " " + hasModeArg;
+			}
+		}
+
+		channel->broadcast(c.getSource() + " MODE " + channel->getName() + " " + actModestr + actModeArg);
+
+		if (!errChar.empty())
+		{
+			size_t	errlen = errChar.length();
+			for (size_t i = 0; i < errlen; ++i)
+				reply(c, ERR_UNKNOWNMODE(c.getNick(), errChar[i]));
+		}
+
+	}
+}
+
+void	Server::cmdPrivmsg(Client& c, const Args& a)
+{
+	if (a.empty() || a[0].empty())
+		return (reply(c, ERR_NORECIPIENT(c.getNick(), "PRIVMSG")));
+	if (a.size() < 2 || a[1].empty())
+		return (reply(c, ERR_NOTEXTTOSEND(c.getNick())));
+	
+	// make an array of targets
+	std::vector<std::string>	targetNames;
+	std::string					token;
+
+	std::stringstream	ssTarget(a[1]);
+	while (std::getline(ssTarget, token, ','))
+		targetNames.push_back(token);
+
+	std::vector<std::string>::const_iterator	it;
+	for (it = targetNames.begin(); it != targetNames.end(); ++it)
+	{
+		// handle channels
+		if (CHANTYPES.find((*it)[0]) != std::string::npos)
+		{
+			Channel*	channel = findChannel(*it);
+			if (!channel)
+			{
+				reply(c, ERR_NOSUCHNICK(c.getNick(), *it));
+				continue;
+			}
+			if (!channel->has(c))
+			{
+				reply(c, ERR_CANNOTSENDTOCHAN(c.getNick(), *it));
+				continue;
+			}
+
+			channel->broadcast(c.getSource() + " PRIVMSG " + channel->getName() + " :" + a[1], &c);
+		}
+		else
+		{
+			Client*	client = findClient(*it);
+			if (!client)
+			{
+				reply(c, ERR_NOSUCHNICK(c.getNick(), *it));
+				continue;
+			}
+			
+			client->push(":" + c.getNick() + " PRIVMSG " + *it + " :" + a[1]);
+		}
+	}
+}
+
 void	Server::cmdNotice(Client& c, const Args& a)	{ (void)c; (void)a; }

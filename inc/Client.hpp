@@ -35,6 +35,8 @@ public:
 	bool				pending() const;
 	std::string&		buffer();
 
+	std::string			getSource();
+
 private:
 	int			_fd;
 	std::string	_host;

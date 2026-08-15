@@ -15,7 +15,22 @@ void	Server::execute(Client& client, const std::string& line)
 
 void	Server::welcome(Client& client)	{ (void)client; }
 
-void	Server::cmdCap(Client& c, const Args& a)		{ (void)c; (void)a; }
+// no capability supported
+void	Server::cmdCap(Client& c, const Args& a)
+{
+	if (a.empty())
+		return ;
+	if (a[0] == "LS" || a[0] == "LIST")
+		return (reply(c, ":" SERVER_NAME " CAP * " + a[0] + " :"));
+	if (a[0] == "REQ")
+	{
+		std::string	wanted;
+
+		if (a.size() > 1)
+			wanted = a[1];
+		return (reply(c, ":" SERVER_NAME " CAP * NAK :" + wanted));
+	}
+}
 
 // authenticates to connect to the server
 void	Server::cmdPass(Client& c, const Args& a)
@@ -118,8 +133,19 @@ void	Server::cmdUser(Client& c, const Args& a)
 	}
 }
 
-void	Server::cmdPing(Client& c, const Args& a)	{ (void)c; (void)a; }
-void	Server::cmdPong(Client& c, const Args& a)	{ (void)c; (void)a; }
+void	Server::cmdPing(Client& c, const Args& a)
+{
+	if (a.empty())
+		return (reply(c, ERR_NOORIGIN(c.getNick())));
+	reply(c, ":" SERVER_NAME " PONG " SERVER_NAME " :" + a[0]);
+}
+
+// nothing to reply
+void	Server::cmdPong(Client& c, const Args& a)
+{
+	(void)c;
+	(void)a;
+}
 
 // Quit used from the client side. WARNING: does not handle error quits.
 void	Server::cmdQuit(Client& c, const Args& a)

@@ -34,6 +34,8 @@ public:
 	void				push(const std::string& message);
 	std::string&		pending();
 
+	std::string			getSource();
+
 private:
 	int			_fd;
 	std::string	_host;

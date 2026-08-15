@@ -63,3 +63,8 @@ void	Client::push(const std::string& message)
 {
 	_pending += message + "\r\n";
 }
+
+std::string	Client::getSource()
+{
+	return (":" + _nick + "!" + _user + "@tmphost");
+}

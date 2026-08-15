@@ -38,6 +38,7 @@ int	main(int argc, char** argv)
 	}
 	std::signal(SIGINT, &Server::stop);
 	std::signal(SIGTERM, &Server::stop);
+	std::signal(SIGQUIT, &Server::stop);
 	std::signal(SIGPIPE, SIG_IGN);	// 閉じた相手への send で落ちるのを防ぐ
 	try
 	{

@@ -16,6 +16,7 @@ int					Client::getFd() const			{ return (_fd); }
 const std::string&	Client::getNick() const			{ return (_nick); }
 const std::string&	Client::getUser() const			{ return (_user); }
 const std::string&	Client::getReal() const			{ return (_real); }
+const std::string&	Client::getHost() const			{ return (_host); }
 bool				Client::gotPass() const			{ return (_gotPass); }
 bool				Client::isRegistered() const	{ return (_registered); }
 bool				Client::isQuitting() const		{ return (_quitting); }
@@ -66,5 +67,5 @@ void	Client::push(const std::string& message)
 
 std::string	Client::getSource()
 {
-	return (":" + _nick + "!" + _user + "@tmphost");
+	return (":" + getPrefix());
 }

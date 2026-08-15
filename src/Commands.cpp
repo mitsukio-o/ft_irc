@@ -4,6 +4,15 @@
 #include <sstream>
 #include <iostream>
 
+std::string	CHANTYPES = "#&";
+std::string	MEMPREFIX = "~@%+";
+std::string	NICKBANPRE = "$:";
+std::string	NICKBAN = " ,*?!@.\0\r\n";
+std::string	USERBAN = " \0\r\n";
+std::string	REALBAN = "\0\r\n";
+
+std::string SRVNAME = "ircserv";
+
 const Server::Command	Server::_commands[] = {
 	{ 0, 0, false, 0 }
 };

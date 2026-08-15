@@ -38,7 +38,8 @@
 # define ERR_NOTONCHANNEL(client, channel) (":ircserv 442 " + client + " " + channel + " :You're not on that channel")
 # define ERR_USERONCHANNEL(client, nick, channel) (":ircserv 443 " + client + " " + nick + " " + channel + " :is already on channel")
 
-# define ERR_NEEDMOREPARAMS(client, command) (":ircserv 461 " + client + " " + command " :Not enough parameters")
+# define ERR_NOTREGISTERED(client) (":ircserv 451 " + client + " :You have not registered")
+# define ERR_NEEDMOREPARAMS(client, command) (":ircserv 461 " + client + " " + command + " :Not enough parameters")
 # define ERR_ALREADYREGISTERED(client) (":ircserv 462 " + client + " :You may not register")
 # define ERR_PASSWDMISMATCH(client) (":ircserv 464 " + client + " :Password incorrect")
 

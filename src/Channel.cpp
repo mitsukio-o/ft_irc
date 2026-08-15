@@ -70,7 +70,7 @@ bool	Channel::has(Client& client) const
 // finds if client is an operator of the channel
 bool	Channel::isOperator(Client& client) const
 {
-	if (_operators.find(&client) == _members.end())
+	if (_operators.find(&client) == _operators.end())
 		return (false);
 	return (true);
 }
@@ -78,7 +78,7 @@ bool	Channel::isOperator(Client& client) const
 // finds if client is invited to the channel
 bool	Channel::isInvited(Client& client) const
 {
-	if (_invited.find(&client) == _members.end())
+	if (_invited.find(&client) == _invited.end())
 		return (false);
 	return (true);
 }
@@ -89,7 +89,7 @@ Client*	Channel::find(const std::string& nick) const
 
 	for (it = _members.begin(); it != _members.end(); ++it)
 	{
-		if ((*it)->getNick() == nick)
+		if (toLower((*it)->getNick()) == toLower(nick))
 			return (*it);
 	}
 	return (NULL);
@@ -107,6 +107,7 @@ void	Channel::leave(Client& client)
 {
 	_members.erase(&client);
 	_operators.erase(&client);
+	_invited.erase(&client);
 }
 
 void	Channel::invite(Client& client)

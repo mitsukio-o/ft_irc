@@ -32,8 +32,7 @@ public:
 	bool				nextLine(std::string& line);
 
 	void				push(const std::string& message);
-	bool				pending() const;
-	std::string&		buffer();
+	std::string&		pending();
 
 private:
 	int			_fd;

@@ -10,7 +10,7 @@ const Server::Command	Server::_commands[] = {
 
 void	Server::execute(Client& client, const std::string& line)
 {
-	client.push("echo: " + line);	// A が受信を作る間の仮実装。B-4 で消す
+	client.push("echo: " + line);	// 受信チェック用の仮実装。B-4 で消す
 }
 
 void	Server::welcome(Client& client)	{ (void)client; }

@@ -2,6 +2,8 @@
 
 #include "Client.hpp"
 
+static const size_t	kMaxLine = 65536;
+
 Client::Client(int fd, const std::string& host)
 	: _fd(fd), _host(host), _nick("*"), _user(), _buffer(), _pending(),
 	  _gotPass(false), _registered(false), _quitting(false)
@@ -17,8 +19,7 @@ const std::string&	Client::getReal() const			{ return (_real); }
 bool				Client::gotPass() const			{ return (_gotPass); }
 bool				Client::isRegistered() const	{ return (_registered); }
 bool				Client::isQuitting() const		{ return (_quitting); }
-bool				Client::pending() const			{ return (!_pending.empty()); }
-std::string&		Client::buffer()				{ return (_buffer); }
+std::string&		Client::pending()				{ return (_pending); }
 
 void	Client::setNick(const std::string& nick)	{ _nick = nick; }
 void	Client::setUser(const std::string& user)	{ _user = user; }
@@ -34,22 +35,31 @@ std::string	Client::getPrefix() const
 
 void	Client::store(const char* data, size_t size)
 {
-	(void)data;
-	(void)size;
+	_buffer.append(data, size);
 }
 
+// 見るのは受信側だけ
 bool	Client::isFlooded() const
 {
-	return (false);
+	return (_buffer.size() > kMaxLine);
 }
 
+// '\n' までを 1 行として取り出し、余りは _buffer に残す
 bool	Client::nextLine(std::string& line)
 {
-	(void)line;
-	return (false);
+	const std::string::size_type	end = _buffer.find('\n');
+
+	if (end == std::string::npos)
+		return (false);
+	line = _buffer.substr(0, end);
+	_buffer.erase(0, end + 1);
+	if (!line.empty() && line[line.size() - 1] == '\r')
+		line.erase(line.size() - 1);
+	return (true);
 }
 
+// キューに積む。POLLOUTが立ったら実際送る
 void	Client::push(const std::string& message)
 {
-	(void)message;
+	_pending += message + "\r\n";
 }

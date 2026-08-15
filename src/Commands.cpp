@@ -4,6 +4,15 @@
 #include <sstream>
 #include <iostream>
 
+std::string	CHANTYPES = "#&";
+std::string	MEMPREFIX = "~@%+";
+std::string	NICKBANPRE = "$:";
+std::string	NICKBAN = " ,*?!@.\0\r\n";
+std::string	USERBAN = " \0\r\n";
+std::string	REALBAN = "\0\r\n";
+
+std::string SRVNAME = "ircserv";
+
 const Server::Command	Server::_commands[] = {
 	{ 0, 0, false, 0 }
 };
@@ -65,7 +74,25 @@ void	Server::execute(Client& client, const std::string& line)
 	reply(client, ERR_UNKNOWNCOMMAND(client.getNick(), command));
 }
 
-void	Server::welcome(Client& client)	{ (void)client; }
+void	Server::welcome(Client& c)
+{
+	// welcome sequence
+	reply(c, RPL_WELCOME(c.getNick(), "ircserv", c.getNick(), c.getUser(), "tmphost"));
+	reply(c, RPL_YOURHOST(c.getNick(), "ircserv", "1.0"));
+	reply(c, RPL_CREATED(c.getNick()));
+	reply(c, RPL_MYINFO(c.getNick(), "ircserv", "1.0"));
+	reply(c, RPL_ISUPPORT(c.getNick()));
+
+	// reply to LUSERS
+	std::stringstream	ss;
+	ss << _clients.size();
+
+	reply(c, RPL_LUSERCLIENT(c.getNick(), ss.str()));
+	reply(c, RPL_LUSERME(c.getNick(), ss.str()));
+
+	// MOTD
+	reply(c, ERR_NOMOTD(c.getNick()));
+}
 
 // no capability supported
 void	Server::cmdCap(Client& c, const Args& a)
